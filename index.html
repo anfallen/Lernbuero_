@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Nachsitzplan</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="login-gate" class="login-gate">
+    <form id="login-form" class="card login-card" autocomplete="on">
+      <h1>Nachsitzplan</h1>
+      <p class="muted">Bitte mit Benutzername und Passwort anmelden.</p>
+      <label>Benutzername
+        <input type="text" id="login-user" autocomplete="username" required>
+      </label>
+      <label>Passwort
+        <input type="password" id="login-pass" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="status error-text" hidden>Benutzername oder Passwort ist nicht korrekt.</p>
+      <button type="submit" class="btn btn-primary">Anmelden</button>
+    </form>
+  </div>
+
+  <div class="page" id="app" hidden>
+    <header class="topbar">
+      <div>
+        <h1>Nachsitzplan</h1>
+        <p class="muted">Nur für berechtigte Lehrkräfte · personenbezogene Schülerdaten</p>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" id="btn-stats" class="btn btn-primary">Statistik</button>
+      </div>
+    </header>
+
+    <p id="status" class="status" role="status"></p>
+
+    <section class="card">
+      <h2>Lehrkraft</h2>
+      <label class="inline-label">Dein Name
+        <input type="text" id="teacher-name" placeholder="z. B. Fr. Müller" required>
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>Neuer Eintrag</h2>
+      <form id="entry-form" class="entry-form">
+        <label>Datum <input type="date" id="e-date" required></label>
+        <label>Uhrzeit <input type="time" id="e-time" value="13:30"></label>
+        <label>Klasse <input type="text" id="e-class" required placeholder="7a"></label>
+        <label>Schüler/in <input type="text" id="e-student" required placeholder="Vorname Nachname"></label>
+        <label class="span-2">Grund <input type="text" id="e-reason" required placeholder="z. B. fehlende Hausaufgaben"></label>
+        <label class="span-2">Arbeitsmaterial
+          <textarea id="e-material" rows="3" placeholder="Was soll beim Nachsitzen erledigt werden?"></textarea>
+        </label>
+        <label class="span-2">Raum / Ort <input type="text" id="e-room" value="BK-Saal"></label>
+        <label class="check span-2"><input type="checkbox" id="e-parents"> Eltern sind verständigt</label>
+        <button type="submit" class="btn btn-primary span-2">Hinzufügen</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="filters">
+        <label>Filter Datum <input type="date" id="f-date"></label>
+        <label>Filter Klasse <input type="text" id="f-class" placeholder="alle"></label>
+        <label class="check"><input type="checkbox" id="f-open-only" checked> nur offene</label>
+        <button type="button" id="btn-clear-filters" class="btn">Filter zurücksetzen</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Erledigt</th>
+              <th>Datum</th>
+              <th>Zeit</th>
+              <th>Klasse</th>
+              <th>Schüler/in</th>
+              <th>Grund</th>
+              <th>Arbeitsmaterial</th>
+              <th>Ort</th>
+              <th>Eltern verständigt</th>
+              <th>eingetragen von</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="entries-body"></tbody>
+        </table>
+      </div>
+      <p id="empty-hint" class="muted">Noch keine Einträge.</p>
+    </section>
+
+    <footer class="footer-note">
+      Einträge bleiben in diesem Browser gespeichert. Die Seite nur im geschützten IServ-Ordner für Lehrkräfte öffnen.
+    </footer>
+  </div>
+
+  <div id="stats-dialog" class="stats-dialog" hidden>
+    <div class="card stats-card" role="dialog" aria-labelledby="stats-title">
+      <div class="stats-head">
+        <h2 id="stats-title">Statistik</h2>
+        <button type="button" id="btn-stats-close" class="btn">Schließen</button>
+      </div>
+      <p class="muted">Alle Nachsitzer. Gleiche Namen werden zusammengezählt.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Schüler/in</th>
+              <th>Klasse</th>
+              <th>Anzahl</th>
+            </tr>
+          </thead>
+          <tbody id="stats-body"></tbody>
+        </table>
+      </div>
+      <p id="stats-empty" class="muted" hidden>Noch keine Nachsitzer.</p>
+      <div class="stats-actions">
+        <button type="button" id="btn-stats-reset" class="btn">Statistik zurücksetzen</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

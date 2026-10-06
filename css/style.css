@@ -1,0 +1,236 @@
+:root {
+  --bg: #f3f1ec;
+  --card: #fffdf8;
+  --ink: #1f2933;
+  --muted: #62707c;
+  --line: #d7dde3;
+  --primary: #0f4c5c;
+  --primary-hover: #0a3540;
+  --danger: #9b2226;
+  --ok: #2d6a4f;
+  --radius: 12px;
+  --shadow: 0 8px 24px rgb(31 41 51 / 0.08);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, #e7f1f3 0, transparent 42%),
+    linear-gradient(180deg, #eef2f4, var(--bg));
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.login-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.login-gate[hidden] { display: none; }
+
+.login-card {
+  width: min(100%, 24rem);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.login-card .btn { justify-content: center; }
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+h1, h2 { margin: 0 0 0.4rem; }
+.muted { color: var(--muted); }
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.1rem 1.2rem;
+  margin-bottom: 1rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.inline-label {
+  max-width: 24rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="date"],
+input[type="time"],
+textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.btn,
+.file-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn:hover,
+.file-btn:hover { background: #f5f7f9; }
+
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+
+.status {
+  min-height: 1.4rem;
+  margin: 0 0 1rem;
+  color: var(--ok);
+  font-size: 0.95rem;
+}
+
+.status.error-text { color: var(--danger); }
+
+.entry-form,
+.filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.span-2 { grid-column: span 2; }
+
+.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 0.85rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.55rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tr.done td {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.footer-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.stats-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgb(31 41 51 / 0.45);
+}
+
+.stats-dialog[hidden] { display: none; }
+
+.stats-card {
+  width: min(100%, 40rem);
+  max-height: min(80vh, 36rem);
+  overflow: auto;
+  margin: 0;
+}
+
+.stats-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+.stats-head h2 { margin: 0; }
+
+.stats-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+@media (max-width: 700px) {
+  .entry-form,
+  .filters {
+    grid-template-columns: 1fr;
+  }
+  .span-2 { grid-column: span 1; }
+}
