@@ -11,15 +11,15 @@
   <div id="login-gate" class="login-gate">
     <form id="login-form" class="card login-card" autocomplete="on">
       <h1>Nachsitzplan</h1>
-      <p class="muted">Bitte mit Benutzername und Passwort anmelden.</p>
+      <p class="muted">Bitte mit dem gemeinsamen Benutzernamen und Passwort anmelden.</p>
       <label>Benutzername
         <input type="text" id="login-user" autocomplete="username" required>
       </label>
       <label>Passwort
         <input type="password" id="login-pass" autocomplete="current-password" required>
       </label>
-      <p id="login-error" class="status error-text" hidden>Benutzername oder Passwort ist nicht korrekt.</p>
-      <button type="submit" class="btn btn-primary">Anmelden</button>
+      <p id="login-error" class="status error-text" hidden></p>
+      <button type="submit" id="login-submit" class="btn btn-primary">Anmelden</button>
     </form>
   </div>
 
@@ -29,13 +29,55 @@
         <h1>Nachsitzplan</h1>
         <p class="muted">Nur für berechtigte Lehrkräfte · personenbezogene Schülerdaten</p>
       </div>
-      <div class="topbar-actions">
+      <div class="topbar-actions" id="extra-actions" hidden>
+        <button type="button" id="btn-backup" class="btn">Sicherung</button>
+        <label class="file-btn">Sicherung laden
+          <input type="file" id="backup-file" accept="application/json,.json">
+        </label>
+        <button type="button" id="btn-password" class="btn">Passwort</button>
+        <button type="button" id="btn-connection" class="btn">Verbindung</button>
         <button type="button" id="btn-stats" class="btn btn-primary">Statistik</button>
       </div>
     </header>
 
     <p id="status" class="status" role="status"></p>
 
+    <section id="setup-panel" class="card" hidden>
+      <h2 id="setup-title">Gemeinsame Speicherung</h2>
+      <div id="setup-github">
+        <p class="muted">Die veröffentlichte Seite kann Einträge nicht von selbst behalten. Einmalig wird ein GitHub-Schlüssel angelegt, der nur dieses Repository beschreiben darf. Schülernamen werden vorher verschlüsselt.</p>
+        <ol class="steps">
+          <li>Auf GitHub: Profil → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong> → <strong>Generate new token</strong>.</li>
+          <li>Nur dieses Repository auswählen. Unter <strong>Contents</strong> die Berechtigung <strong>Read and write</strong> setzen, den Token erzeugen und kopieren.</li>
+          <li>Owner, Repository und Token unten eintragen. Dieselben drei Werte in <code>js/config.js</code> speichern und die Datei erneut hochladen, damit jedes Gerät speichern kann.</li>
+        </ol>
+        <form id="github-form" class="entry-form">
+          <label>Owner
+            <input id="cfg-owner" required autocomplete="off" spellcheck="false" placeholder="GitHub-Name">
+          </label>
+          <label>Repository
+            <input id="cfg-repo" required autocomplete="off" spellcheck="false" placeholder="nachsitzplan">
+          </label>
+          <label class="span-2">Token
+            <input id="cfg-token" type="password" required autocomplete="off" spellcheck="false">
+          </label>
+          <button type="submit" class="btn btn-primary span-2">Verbinden</button>
+        </form>
+      </div>
+      <form id="new-password-form" class="entry-form" hidden>
+        <p class="muted span-2">Das bisherige Passwort steht in der alten Datei auf GitHub. Bitte ein neues gemeinsames Passwort festlegen und es nur an Lehrkräfte weitergeben.</p>
+        <label>Neues Passwort
+          <input id="new-pass" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <label>Wiederholen
+          <input id="new-pass-2" type="password" required minlength="8" autocomplete="new-password">
+        </label>
+        <p id="new-pass-error" class="status error-text span-2" hidden></p>
+        <button type="submit" class="btn btn-primary span-2">Passwort speichern</button>
+      </form>
+    </section>
+
+    <div id="workspace" hidden>
     <section class="card">
       <h2>Lehrkraft</h2>
       <label class="inline-label">Dein Name
@@ -90,9 +132,10 @@
       </div>
       <p id="empty-hint" class="muted">Noch keine Einträge.</p>
     </section>
+    </div>
 
-    <footer class="footer-note">
-      Einträge bleiben in diesem Browser gespeichert. Die Seite nur im geschützten IServ-Ordner für Lehrkräfte öffnen.
+    <footer class="footer-note" id="sync-note">
+      Einträge werden verschlüsselt im GitHub-Repository gespeichert und sind nach der Anmeldung auf allen Geräten sichtbar.
     </footer>
   </div>
 
@@ -122,6 +165,25 @@
     </div>
   </div>
 
+  <div id="password-dialog" class="stats-dialog" hidden>
+    <form id="password-form" class="card stats-card form-stack" role="dialog" aria-labelledby="password-title">
+      <h2 id="password-title">Gemeinsames Passwort ändern</h2>
+      <p class="muted">Danach gilt das neue Passwort auf allen Geräten. Bitte die anderen Lehrkräfte informieren.</p>
+      <label>Neues Passwort
+        <input type="password" id="pw-1" required minlength="8" autocomplete="new-password">
+      </label>
+      <label>Wiederholen
+        <input type="password" id="pw-2" required minlength="8" autocomplete="new-password">
+      </label>
+      <p id="pw-error" class="status error-text" hidden></p>
+      <div class="stats-actions">
+        <button type="button" id="pw-cancel" class="btn">Abbrechen</button>
+        <button type="submit" class="btn btn-primary">Speichern</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
