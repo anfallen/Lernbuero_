@@ -6,9 +6,8 @@ Gemeinsame Nachsitz-Liste für Lehrkräfte. Die Seite kann über GitHub Pages ve
 
 1. Auf GitHub einen Fine-grained Token anlegen: Profil → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
 2. Nur dieses Repository auswählen. Bei **Contents** die Berechtigung **Read and write** setzen.
-3. In `js/config.js` Owner, Repository-Name und Token eintragen.
-4. Die Datei auf GitHub aktualisieren.
-5. Seite öffnen, mit dem bisherigen Benutzernamen anmelden und das neue gemeinsame Passwort festlegen. Dieses Passwort nur an Lehrkräfte weitergeben, nicht in eine Datei schreiben.
+3. Seite öffnen, mit dem bisherigen Benutzernamen anmelden und das neue gemeinsame Passwort festlegen. Dieses Passwort nur an Lehrkräfte weitergeben, nicht in eine Datei schreiben.
+4. Owner, Repository und Token im Formular eintragen. Der Token bleibt in diesem Browser. Auf jedem weiteren Gerät dieselben drei Werte einmal eintragen. GitHub verhindert, dass der Token in einer Datei im Repository steht.
 
 Die Seite führt durch dieselben Schritte, wenn `js/config.js` noch leer ist.
 
