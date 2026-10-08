@@ -719,7 +719,7 @@ async function onConnect(event) {
     preloaded = { ready: true, plan: await fetchRemote() };
     const fileToken = String((window.NACHSITZ_CONFIG || {}).token || '').trim();
     if (!fileToken) {
-      setStatus('Verbunden. Für alle anderen Geräte Owner, Repository und Token in js/config.js eintragen und die Datei erneut auf GitHub laden.');
+      setStatus('Verbunden. Auf weiteren Geräten Owner, Repository und Token einmal im Formular eintragen.');
     } else {
       setStatus('Verbunden.');
     }
