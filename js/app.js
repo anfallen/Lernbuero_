@@ -11,6 +11,7 @@ const DEFAULT_ROOM = 'BK-Saal';
 
 let plan = emptyPlan();
 let remoteEtag = null;
+let planVersion = 0;
 let started = false;
 let workspaceReady = false;
 let pollStarted = false;
@@ -244,14 +245,14 @@ function explainError(error) {
   return 'Speichern ist fehlgeschlagen.';
 }
 
-async function fetchRemote() {
+async function fetchRemote(updateEtag = true) {
   const response = await davRequest('GET');
   if (response.status === 404) {
-    remoteEtag = null;
+    if (updateEtag) remoteEtag = null;
     return null;
   }
   if (!response.ok) throw cloudError(response);
-  remoteEtag = response.headers.get('ETag');
+  if (updateEtag) remoteEtag = response.headers.get('ETag');
   return decryptEnvelope(await response.json());
 }
 
@@ -269,7 +270,7 @@ async function writeRemote(planObj) {
   const headers = { 'Content-Type': 'application/json' };
   if (remoteEtag) headers['If-Match'] = remoteEtag;
   const response = await davRequest('PUT', headers, JSON.stringify(envelope));
-  if (response.status === 412) {
+  if (response.status === 412 || response.status === 409) {
     const error = new Error('conflict');
     throw error;
   }
@@ -279,12 +280,16 @@ async function writeRemote(planObj) {
   await saveDraft();
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function saveShared(message, options = {}) {
   let lastError = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       if (!options.replace) {
-        const remote = await fetchRemote();
+        const remote = await fetchRemote(true);
         if (remote) plan = mergePlans(remote, plan);
       } else if (attempt > 0) {
         await refreshEtag();
@@ -301,6 +306,7 @@ async function saveShared(message, options = {}) {
     } catch (error) {
       lastError = error;
       if (error.message !== 'conflict') break;
+      await wait(200 * (attempt + 1));
     }
   }
   await saveDraft();
@@ -308,6 +314,7 @@ async function saveShared(message, options = {}) {
 }
 
 function queueSave(message, options) {
+  planVersion += 1;
   inPush = true;
   pendingSaves += 1;
   renderEntries();
@@ -826,18 +833,35 @@ async function onRestore(event) {
   }
 }
 
+let pollSeq = 0;
+
 async function poll() {
   if (!workspaceReady || inPush || pendingSaves || document.hidden) return;
+  const seq = ++pollSeq;
+  const seen = planVersion;
   try {
-    const remote = await fetchRemote();
-    if (!remote || pendingSaves || inPush) return;
-    if (entriesSignature(remote) !== entriesSignature(plan)) {
-      plan = remote;
-      await saveDraft();
-      renderEntries();
-      if (!$('stats-dialog').hidden) renderStats();
-      setStatus('Neue Änderungen von anderen Geräten wurden geladen.');
+    const remote = await fetchRemote(false);
+    if (seq !== pollSeq || !remote || pendingSaves || inPush) return;
+    const merged = mergePlans(remote, plan);
+    const changedLocally = seen !== planVersion;
+    const changed = entriesSignature(merged) !== entriesSignature(plan);
+    if (!changed) {
+      updateSyncNote();
+      return;
     }
+    plan = merged;
+    if (!changedLocally) planVersion += 1;
+    await saveDraft();
+    renderEntries();
+    if (!$('stats-dialog').hidden) renderStats();
+    const needsPush = entriesSignature(merged) !== entriesSignature(remote);
+    if (needsPush && !pendingSaves && !inPush) {
+      queueSave('Änderungen von beiden Geräten wurden zusammengeführt.');
+      return;
+    }
+    setStatus(changedLocally
+      ? 'Änderungen von beiden Geräten wurden zusammengeführt.'
+      : 'Neue Änderungen von anderen Geräten wurden geladen.');
     updateSyncNote();
   } catch (error) {
     if (error.message === 'decrypt') {
