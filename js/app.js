@@ -216,7 +216,7 @@ async function davRequest(method, extraHeaders, body) {
     return await fetch(fileUrl(cfg), {
       method,
       headers: {
-        Authorization: `Basic ${btoa(`${cfg.username}:${cfg.password}`)}`,
+        Authorization: `Basic ${bytesToB64(new TextEncoder().encode(`${cfg.username}:${cfg.password}`))}`,
         ...(extraHeaders || {}),
       },
       body,
