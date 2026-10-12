@@ -250,6 +250,19 @@ code {
   margin-top: 1rem;
 }
 
+.admin-gate {
+  max-width: 28rem;
+  margin-top: 0.75rem;
+}
+
+.admin-tools {
+  margin-top: 0.75rem;
+}
+
+.admin-tools .topbar-actions {
+  margin-top: 0.75rem;
+}
+
 .count {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
