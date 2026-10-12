@@ -206,15 +206,18 @@ function isConfigured() {
   return !!(cfg.baseUrl && cfg.username && cfg.password);
 }
 
-function fileUrl(cfg) {
-  const path = [cfg.folder, cfg.file].filter(Boolean).map(encodeURIComponent).join('/');
-  return `${cfg.baseUrl}/remote.php/dav/files/${encodeURIComponent(cfg.username)}/${path}`;
+function cloudUrl(relativePath) {
+  const cfg = cloudConfig();
+  const parts = [cfg.folder];
+  if (relativePath) parts.push(...String(relativePath).split('/').filter(Boolean));
+  else parts.push(cfg.file);
+  return `${cfg.baseUrl}/remote.php/dav/files/${encodeURIComponent(cfg.username)}/${parts.map(encodeURIComponent).join('/')}`;
 }
 
-async function davRequest(method, extraHeaders, body) {
+async function davRequest(method, extraHeaders, body, relativePath) {
   const cfg = cloudConfig();
   try {
-    return await fetch(fileUrl(cfg), {
+    return await fetch(cloudUrl(relativePath), {
       method,
       headers: {
         Authorization: `Basic ${bytesToB64(new TextEncoder().encode(`${cfg.username}:${cfg.password}`))}`,
@@ -245,6 +248,8 @@ function explainError(error) {
   return 'Speichern ist fehlgeschlagen.';
 }
 
+let loadedChangeNames = [];
+
 async function fetchRemote(updateEtag = true) {
   const response = await davRequest('GET');
   if (response.status === 404) {
@@ -254,6 +259,91 @@ async function fetchRemote(updateEtag = true) {
   if (!response.ok) throw cloudError(response);
   if (updateEtag) remoteEtag = response.headers.get('ETag');
   return decryptEnvelope(await response.json());
+}
+
+function changeNamesFromXml(xml) {
+  const names = [];
+  const pattern = /<(?:[^:>]+:)?href>([^<]+)<\/(?:[^:>]+:)?href>/gi;
+  let match = pattern.exec(xml);
+  while (match) {
+    const href = decodeURIComponent(match[1]);
+    const name = href.split('/').filter(Boolean).pop();
+    if (name && name.endsWith('.json')) names.push(name);
+    match = pattern.exec(xml);
+  }
+  return names;
+}
+
+async function listChanges() {
+  const response = await davRequest('PROPFIND', { Depth: '1' }, null, 'changes');
+  if (response.status === 404) return [];
+  if (!response.ok) throw cloudError(response);
+  return changeNamesFromXml(await response.text());
+}
+
+async function readChange(name) {
+  const response = await davRequest('GET', null, null, `changes/${name}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw cloudError(response);
+  return decryptEnvelope(await response.json());
+}
+
+async function loadMerged() {
+  const names = await listChanges();
+  loadedChangeNames = names;
+  let merged = null;
+  let readable = 0;
+  let locked = 0;
+  try {
+    merged = await fetchRemote(true);
+    if (merged) readable += 1;
+  } catch (error) {
+    if (error.message !== 'decrypt') throw error;
+    locked += 1;
+  }
+  const parts = await Promise.all(names.map(async (name) => {
+    try {
+      return await readChange(name);
+    } catch (error) {
+      if (error.message !== 'decrypt') throw error;
+      locked += 1;
+      return null;
+    }
+  }));
+  parts.filter(Boolean).forEach((part) => {
+    readable += 1;
+    merged = mergePlans(merged || emptyPlan(), part);
+  });
+  if (!readable && locked) {
+    const error = new Error('decrypt');
+    throw error;
+  }
+  return merged;
+}
+
+async function ensureChangesFolder() {
+  const response = await davRequest('MKCOL', null, null, 'changes');
+  if (response.status === 201 || response.status === 405 || response.status === 301) return;
+  if (!response.ok && response.status !== 409) throw cloudError(response);
+}
+
+async function appendSnapshot(planObj) {
+  await ensureChangesFolder();
+  const name = `${Date.now()}-${uid()}.json`;
+  const envelope = await encryptPlan(planObj);
+  const response = await davRequest(
+    'PUT',
+    { 'Content-Type': 'application/json' },
+    JSON.stringify(envelope),
+    `changes/${name}`
+  );
+  if (!response.ok) throw cloudError(response);
+}
+
+async function deleteChange(name) {
+  const response = await davRequest('DELETE', null, null, `changes/${name}`);
+  if (response.status === 404 || response.status === 204 || response.ok) return;
+  throw cloudError(response);
 }
 
 async function refreshEtag() {
@@ -286,18 +376,33 @@ function wait(ms) {
 
 async function saveShared(message, options = {}) {
   let lastError = null;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       if (!options.replace) {
-        const remote = await fetchRemote(true);
+        const remote = await loadMerged();
         if (remote) plan = mergePlans(remote, plan);
-      } else if (attempt > 0) {
-        await refreshEtag();
+        const previousNames = loadedChangeNames.slice();
+        plan.updatedAt = new Date().toISOString();
+        plan.updatedBy = teacherName() || plan.updatedBy || null;
+        plan.passwordReady = true;
+        await appendSnapshot(plan);
+        if (previousNames.length >= 8) {
+          try {
+            await writeRemote(plan);
+            for (const name of previousNames) await deleteChange(name);
+          } catch (error) {
+            if (error.message !== 'conflict') throw error;
+          }
+        }
+      } else {
+        if (attempt > 0) await refreshEtag();
+        plan.updatedAt = new Date().toISOString();
+        plan.updatedBy = teacherName() || plan.updatedBy || null;
+        plan.passwordReady = true;
+        await writeRemote(plan);
+        for (const name of loadedChangeNames) await deleteChange(name);
+        loadedChangeNames = [];
       }
-      plan.updatedAt = new Date().toISOString();
-      plan.updatedBy = teacherName() || plan.updatedBy || null;
-      plan.passwordReady = true;
-      await writeRemote(plan);
       renderEntries();
       if (!$('stats-dialog').hidden) renderStats();
       updateSyncNote();
@@ -558,7 +663,7 @@ async function routeAfterLogin() {
   }
   try {
     if (!preloaded.ready) {
-      preloaded = { ready: true, plan: await fetchRemote() };
+      preloaded = { ready: true, plan: await loadMerged() };
     }
     if (!preloaded.plan || !preloaded.plan.passwordReady) {
       plan = preloaded.plan || emptyPlan();
@@ -640,6 +745,18 @@ async function onSetPassword(event) {
     errorEl.hidden = false;
     return;
   }
+  const button = event.submitter;
+  button.disabled = true;
+  setStatus('Einträge werden abgeglichen …');
+  try {
+    const remote = await loadMerged();
+    if (remote) plan = mergePlans(remote, plan || emptyPlan());
+  } catch (error) {
+    button.disabled = false;
+    errorEl.textContent = explainError(error);
+    errorEl.hidden = false;
+    return;
+  }
   const previousPassword = sessionPassword();
   const previousSalt = activeSalt;
   sessionStorage.setItem(PASS_KEY, first);
@@ -647,8 +764,6 @@ async function onSetPassword(event) {
   activeSalt = crypto.getRandomValues(new Uint8Array(16));
   plan.passwordReady = true;
   rememberLegacy();
-  const button = event.submitter;
-  button.disabled = true;
   setStatus('Passwort wird gespeichert …');
   try {
     await saveShared('Das neue Passwort gilt jetzt auf allen Geräten. Bitte nur an Lehrkräfte weitergeben.', { replace: true });
@@ -700,14 +815,23 @@ async function onChangePassword(event) {
     return;
   }
   if (!confirm('Neues Passwort jetzt für alle Geräte speichern? Die anderen Lehrkräfte brauchen danach dieses Passwort.')) return;
+  const button = event.submitter;
+  button.disabled = true;
+  try {
+    const remote = await loadMerged();
+    if (remote) plan = mergePlans(remote, plan || emptyPlan());
+  } catch (error) {
+    button.disabled = false;
+    errorEl.textContent = explainError(error);
+    errorEl.hidden = false;
+    return;
+  }
   const previousPassword = sessionPassword();
   const previousSalt = activeSalt;
   sessionStorage.setItem(PASS_KEY, first);
   resetKeyCache();
   activeSalt = crypto.getRandomValues(new Uint8Array(16));
   plan.passwordReady = true;
-  const button = event.submitter;
-  button.disabled = true;
   try {
     await saveShared('Das gemeinsame Passwort wurde geändert. Bitte die anderen Lehrkräfte informieren.', { replace: true });
     closePasswordDialog();
@@ -840,7 +964,7 @@ async function poll() {
   const seq = ++pollSeq;
   const seen = planVersion;
   try {
-    const remote = await fetchRemote(false);
+    const remote = await loadMerged();
     if (seq !== pollSeq || !remote || pendingSaves || inPush) return;
     const merged = mergePlans(remote, plan);
     const changedLocally = seen !== planVersion;
@@ -956,7 +1080,7 @@ async function onLogin(event) {
     resetKeyCache();
     activeSalt = null;
     try {
-      const remote = await fetchRemote();
+      const remote = await loadMerged();
       if (!remote && !(await passwordMatches(pass))) {
         clearSession();
         $('login-error').textContent = 'Benutzername oder Passwort ist nicht korrekt.';
