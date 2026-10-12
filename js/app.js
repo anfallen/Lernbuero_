@@ -2,7 +2,6 @@ const LOCAL_KEY = 'nachsitzplan_iserv_draft_v1';
 const TEACHER_KEY = 'nachsitzplan_teacher_name';
 const AUTH_KEY = 'nachsitzplan_auth';
 const PASS_KEY = 'nachsitzplan_gate';
-const CONFIG_KEY = 'nachsitzplan_github_config';
 const MIGRATED_KEY = 'nachsitzplan_remote_migrated_v1';
 const AUTH_USER = 'Lehrkraft';
 const PASS_ITERATIONS = 100000;
@@ -11,7 +10,7 @@ const PASS_HASH_B64 = 'oaZrvILOitZ9pvC8uf2EqK3hRQOD808UOF6L9YkV/cw=';
 const DEFAULT_ROOM = 'BK-Saal';
 
 let plan = emptyPlan();
-let remoteSha = null;
+let remoteEtag = null;
 let started = false;
 let workspaceReady = false;
 let pollStarted = false;
@@ -21,7 +20,6 @@ let saveQueue = Promise.resolve();
 let activeSalt = null;
 let keyCache = { salt: '', pass: '', promise: null };
 let preloaded = { ready: false, plan: null };
-let branchReady = false;
 
 function emptyPlan() {
   return {
@@ -62,7 +60,7 @@ function setStatus(message, isError = false) {
 
 function updateSyncNote() {
   const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  $('sync-note').textContent = `Einträge sind verschlüsselt im Repository gespeichert und auf allen Geräten sichtbar. Zuletzt abgeglichen: ${time} Uhr.`;
+  $('sync-note').textContent = `Einträge sind verschlüsselt in der Nextcloud gespeichert und auf allen Geräten sichtbar. Zuletzt abgeglichen: ${time} Uhr.`;
 }
 
 function teacherName() {
@@ -191,63 +189,38 @@ async function decryptEnvelope(envelope) {
   }
 }
 
-function storedConfig() {
-  try {
-    return JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function detectPages() {
-  const host = location.hostname || '';
-  if (!host.endsWith('.github.io')) return {};
-  const owner = host.slice(0, -'.github.io'.length);
-  const parts = location.pathname.split('/').filter(Boolean);
-  if (!owner) return {};
-  if (!parts.length) return { owner, repo: `${owner}.github.io` };
-  return { owner, repo: parts[0] };
-}
-
-function activeConfig() {
-  const stored = storedConfig();
+function cloudConfig() {
   const file = window.NACHSITZ_CONFIG || {};
-  const detected = detectPages();
   return {
-    owner: String(stored.owner || file.owner || detected.owner || '').trim(),
-    repo: String(stored.repo || file.repo || detected.repo || '').trim(),
-    branch: String(stored.branch || file.branch || 'main').trim() || 'main',
-    path: String(file.path || 'data/plan.json').trim() || 'data/plan.json',
-    token: String(stored.token || file.token || '').trim(),
-    apiBase: String(file.apiBase || 'https://api.github.com').replace(/\/$/, ''),
+    baseUrl: String(file.baseUrl || '').replace(/\/$/, ''),
+    username: String(file.username || '').trim(),
+    password: String(file.password || ''),
+    folder: String(file.folder || 'Nachsitzplan').trim() || 'Nachsitzplan',
+    file: String(file.file || 'plan.json').trim() || 'plan.json',
   };
 }
 
 function isConfigured() {
-  const cfg = activeConfig();
-  return !!(cfg.owner && cfg.repo && cfg.token);
+  const cfg = cloudConfig();
+  return !!(cfg.baseUrl && cfg.username && cfg.password);
 }
 
-function contentUrl(cfg) {
-  const path = cfg.path.split('/').map(encodeURIComponent).join('/');
-  return `${cfg.apiBase}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}/contents/${path}`;
+function fileUrl(cfg) {
+  const path = [cfg.folder, cfg.file].filter(Boolean).map(encodeURIComponent).join('/');
+  return `${cfg.baseUrl}/remote.php/dav/files/${encodeURIComponent(cfg.username)}/${path}`;
 }
 
-async function ghFetch(url, options = {}) {
-  const cfg = activeConfig();
-  const headers = {
-    Accept: 'application/vnd.github+json',
-    Authorization: `Bearer ${cfg.token}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-  };
-  if (options.body) headers['Content-Type'] = 'application/json';
+async function davRequest(method, extraHeaders, body) {
+  const cfg = cloudConfig();
   try {
-    return await fetch(url, {
-      method: options.method || 'GET',
-      headers,
-      body: options.body,
+    return await fetch(fileUrl(cfg), {
+      method,
+      headers: {
+        Authorization: `Basic ${btoa(`${cfg.username}:${cfg.password}`)}`,
+        ...(extraHeaders || {}),
+      },
+      body,
       cache: 'no-store',
-      referrerPolicy: 'no-referrer',
     });
   } catch {
     const error = new Error('network');
@@ -255,89 +228,53 @@ async function ghFetch(url, options = {}) {
   }
 }
 
-async function githubError(response) {
-  let detail = '';
-  try {
-    const body = await response.json();
-    detail = body.message || '';
-  } catch {
-    detail = '';
-  }
-  const error = new Error('github');
+function cloudError(response) {
+  const error = new Error('cloud');
   error.status = response.status;
-  error.detail = detail;
   return error;
 }
 
 function explainError(error) {
   if (!error || error.message === 'network') {
-    return 'GitHub ist gerade nicht erreichbar. Der Eintrag bleibt auf diesem Gerät und wird erneut versucht.';
+    return 'Nextcloud ist gerade nicht erreichbar. Der Eintrag bleibt auf diesem Gerät und wird erneut versucht.';
   }
-  if (error.status === 401) return 'Der GitHub-Schlüssel wurde abgelehnt.';
-  if (error.status === 403) return 'Der Schlüssel darf dieses Repository nicht ändern. Bei Contents wird Read and write gebraucht.';
-  if (error.status === 404) return 'Das Repository wurde nicht gefunden. Owner und Name prüfen.';
+  if (error.status === 401) return 'Nextcloud hat die Anmeldung abgelehnt.';
+  if (error.status === 403) return 'Nextcloud hat das Speichern abgelehnt.';
   if (error.message === 'conflict') return 'Jemand anders hat gerade gespeichert. Bitte noch einmal versuchen.';
   return 'Speichern ist fehlgeschlagen.';
 }
 
-async function verifyRepo() {
-  const cfg = activeConfig();
-  const response = await ghFetch(`${cfg.apiBase}/repos/${encodeURIComponent(cfg.owner)}/${encodeURIComponent(cfg.repo)}`);
-  if (!response.ok) throw await githubError(response);
-  const info = await response.json();
-  return info.default_branch || 'main';
-}
-
-async function ensureBranch() {
-  if (branchReady) return;
-  const branch = await verifyRepo();
-  const stored = storedConfig();
-  const cfg = activeConfig();
-  localStorage.setItem(CONFIG_KEY, JSON.stringify({
-    owner: stored.owner || cfg.owner,
-    repo: stored.repo || cfg.repo,
-    branch,
-    token: stored.token || '',
-  }));
-  branchReady = true;
-}
-
 async function fetchRemote() {
-  const cfg = activeConfig();
-  const response = await ghFetch(`${contentUrl(cfg)}?ref=${encodeURIComponent(cfg.branch)}`);
+  const response = await davRequest('GET');
   if (response.status === 404) {
-    remoteSha = null;
+    remoteEtag = null;
     return null;
   }
-  if (!response.ok) throw await githubError(response);
-  const data = await response.json();
-  remoteSha = data.sha || null;
-  const bytes = b64ToBytes(data.content || '');
-  const envelope = JSON.parse(new TextDecoder().decode(bytes));
-  return decryptEnvelope(envelope);
+  if (!response.ok) throw cloudError(response);
+  remoteEtag = response.headers.get('ETag');
+  return decryptEnvelope(await response.json());
+}
+
+async function refreshEtag() {
+  const response = await davRequest('GET');
+  if (response.status === 404) {
+    remoteEtag = null;
+    return;
+  }
+  if (response.ok) remoteEtag = response.headers.get('ETag');
 }
 
 async function writeRemote(planObj) {
-  const cfg = activeConfig();
   const envelope = await encryptPlan(planObj);
-  const content = bytesToB64(new TextEncoder().encode(JSON.stringify(envelope)));
-  const payload = {
-    message: 'Nachsitzplan aktualisieren',
-    content,
-    branch: cfg.branch,
-  };
-  if (remoteSha) payload.sha = remoteSha;
-  const response = await ghFetch(contentUrl(cfg), {
-    method: 'PUT',
-    body: JSON.stringify(payload),
-  });
-  if (response.status === 409 || response.status === 422) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (remoteEtag) headers['If-Match'] = remoteEtag;
+  const response = await davRequest('PUT', headers, JSON.stringify(envelope));
+  if (response.status === 412) {
     const error = new Error('conflict');
     throw error;
   }
-  if (!response.ok) throw await githubError(response);
-  const data = await response.json();
-  remoteSha = (data.content && data.content.sha) || remoteSha;
+  if (!response.ok) throw cloudError(response);
+  remoteEtag = response.headers.get('ETag') || remoteEtag;
   plan = planObj;
   await saveDraft();
 }
@@ -350,12 +287,7 @@ async function saveShared(message, options = {}) {
         const remote = await fetchRemote();
         if (remote) plan = mergePlans(remote, plan);
       } else if (attempt > 0) {
-        const cfg = activeConfig();
-        const response = await ghFetch(`${contentUrl(cfg)}?ref=${encodeURIComponent(cfg.branch)}`);
-        if (response.ok) {
-          const data = await response.json();
-          remoteSha = data.sha || remoteSha;
-        }
+        await refreshEtag();
       }
       plan.updatedAt = new Date().toISOString();
       plan.updatedBy = teacherName() || plan.updatedBy || null;
@@ -611,60 +543,14 @@ function showLogin(message) {
   }
 }
 
-function showGithubSetup() {
-  $('setup-panel').hidden = false;
-  $('setup-github').hidden = false;
-  $('new-password-form').hidden = true;
-  $('setup-title').textContent = 'Gemeinsame Speicherung';
-  const cfg = activeConfig();
-  if (!$('cfg-owner').value) $('cfg-owner').value = cfg.owner;
-  if (!$('cfg-repo').value) $('cfg-repo').value = cfg.repo;
-  if (!$('cfg-token').value) $('cfg-token').value = cfg.token;
-  if (!workspaceReady) {
-    $('workspace').hidden = true;
-    $('extra-actions').hidden = true;
-  }
-}
-
-function showNewPassword() {
-  workspaceReady = false;
-  $('workspace').hidden = true;
-  $('extra-actions').hidden = true;
-  $('setup-panel').hidden = false;
-  $('setup-github').hidden = true;
-  $('new-password-form').hidden = false;
-  $('setup-title').textContent = 'Neues gemeinsames Passwort';
-}
-
-async function showWorkspace(message) {
-  $('setup-panel').hidden = true;
-  $('workspace').hidden = false;
-  $('extra-actions').hidden = false;
-  workspaceReady = true;
-  renderEntries();
-  if (message) setStatus(message);
-  updateSyncNote();
-  startSync();
-  await saveDraft();
-}
-
-function clearSession() {
-  sessionStorage.removeItem(AUTH_KEY);
-  sessionStorage.removeItem(PASS_KEY);
-  resetKeyCache();
-  preloaded = { ready: false, plan: null };
-}
-
 async function routeAfterLogin() {
   setStatus('Wird verbunden …');
   if (!isConfigured()) {
-    setStatus('');
-    showGithubSetup();
+    showLogin('Die Verbindung zur Nextcloud ist nicht eingerichtet.');
     return;
   }
   try {
     if (!preloaded.ready) {
-      await ensureBranch();
       preloaded = { ready: true, plan: await fetchRemote() };
     }
     if (!preloaded.plan || !preloaded.plan.passwordReady) {
@@ -692,53 +578,38 @@ async function routeAfterLogin() {
     if (local && local.passwordReady) {
       plan = local;
       await showWorkspace();
-      setStatus('GitHub ist gerade nicht erreichbar. Gezeigt werden die zuletzt auf diesem Gerät bekannten Einträge.', true);
+      setStatus('Nextcloud ist gerade nicht erreichbar. Gezeigt werden die zuletzt auf diesem Gerät bekannten Einträge.', true);
       return;
     }
-    setStatus(explainError(error), true);
-    showGithubSetup();
+    showLogin(explainError(error));
   }
 }
+function showNewPassword() {
+  workspaceReady = false;
+  $('workspace').hidden = true;
+  $('extra-actions').hidden = true;
+  $('setup-panel').hidden = false;
+  $('new-password-form').hidden = false;
+  $('setup-title').textContent = 'Neues gemeinsames Passwort';
+}
 
-async function onConnect(event) {
-  event.preventDefault();
-  const button = event.submitter;
-  const next = {
-    owner: $('cfg-owner').value.trim(),
-    repo: $('cfg-repo').value.trim(),
-    token: $('cfg-token').value.trim(),
-    branch: 'main',
-  };
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
-  button.disabled = true;
-  setStatus('Verbindung wird geprüft …');
-  try {
-    const branch = await verifyRepo();
-    next.branch = branch;
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
-    preloaded = { ready: true, plan: await fetchRemote() };
-    const fileToken = String((window.NACHSITZ_CONFIG || {}).token || '').trim();
-    if (!fileToken) {
-      setStatus('Verbunden. Auf weiteren Geräten Owner, Repository und Token einmal im Formular eintragen.');
-    } else {
-      setStatus('Verbunden.');
-    }
-    if (!preloaded.plan || !preloaded.plan.passwordReady) {
-      plan = preloaded.plan || emptyPlan();
-      showNewPassword();
-      return;
-    }
-    plan = preloaded.plan;
-    await showWorkspace('Gemeinsame Einträge wurden geladen.');
-  } catch (error) {
-    if (error.message === 'decrypt') {
-      setStatus('Die vorhandenen Einträge lassen sich mit diesem Passwort nicht lesen.', true);
-      return;
-    }
-    setStatus(explainError(error), true);
-  } finally {
-    button.disabled = false;
-  }
+async function showWorkspace(message) {
+  $('setup-panel').hidden = true;
+  $('workspace').hidden = false;
+  $('extra-actions').hidden = false;
+  workspaceReady = true;
+  renderEntries();
+  if (message) setStatus(message);
+  updateSyncNote();
+  startSync();
+  await saveDraft();
+}
+
+function clearSession() {
+  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(PASS_KEY);
+  resetKeyCache();
+  preloaded = { ready: false, plan: null };
 }
 
 async function onSetPassword(event) {
@@ -987,7 +858,6 @@ function startSync() {
 
 function bind() {
   $('entry-form').addEventListener('submit', addEntry);
-  $('github-form').addEventListener('submit', onConnect);
   $('new-password-form').addEventListener('submit', onSetPassword);
   $('password-form').addEventListener('submit', onChangePassword);
   $('btn-password').addEventListener('click', openPasswordDialog);
@@ -1003,7 +873,6 @@ function bind() {
   });
   $('btn-backup').addEventListener('click', downloadBackup);
   $('backup-file').addEventListener('change', onRestore);
-  $('btn-connection').addEventListener('click', showGithubSetup);
   $('teacher-name').addEventListener('change', saveTeacherName);
   $('entries-body').addEventListener('click', onEntriesClick);
   $('entries-body').addEventListener('change', onEntriesChange);
@@ -1063,7 +932,6 @@ async function onLogin(event) {
     resetKeyCache();
     activeSalt = null;
     try {
-      await ensureBranch();
       const remote = await fetchRemote();
       if (!remote && !(await passwordMatches(pass))) {
         clearSession();
