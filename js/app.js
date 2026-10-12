@@ -647,6 +647,8 @@ function rememberLegacy() {
 
 function showLogin(message) {
   workspaceReady = false;
+  lockAdmin();
+  $('admin-panel').hidden = true;
   $('app').hidden = true;
   $('login-gate').hidden = false;
   if (message) {
@@ -698,6 +700,8 @@ async function routeAfterLogin() {
 }
 function showNewPassword() {
   workspaceReady = false;
+  lockAdmin();
+  $('admin-panel').hidden = true;
   $('workspace').hidden = true;
   $('extra-actions').hidden = true;
   $('setup-panel').hidden = false;
@@ -705,8 +709,49 @@ function showNewPassword() {
   $('setup-title').textContent = 'Neues gemeinsames Passwort';
 }
 
+function lockAdmin() {
+  const tools = $('admin-tools');
+  const gate = $('admin-gate-form');
+  const errorEl = $('admin-error');
+  const field = $('admin-pass');
+  if (tools) tools.hidden = true;
+  if (gate) gate.hidden = false;
+  if (errorEl) errorEl.hidden = true;
+  if (field) field.value = '';
+}
+
+function openAdmin() {
+  lockAdmin();
+  $('workspace').hidden = true;
+  $('admin-panel').hidden = false;
+  $('admin-pass').focus();
+}
+
+function closeAdmin() {
+  $('admin-panel').hidden = true;
+  lockAdmin();
+  if ($('setup-panel').hidden) $('workspace').hidden = false;
+}
+
+function onAdminUnlock(event) {
+  event.preventDefault();
+  const typed = new TextEncoder().encode($('admin-pass').value);
+  const current = new TextEncoder().encode(sessionPassword());
+  $('admin-pass').value = '';
+  const errorEl = $('admin-error');
+  if (!current.length || !bytesEqual(typed, current)) {
+    errorEl.textContent = 'Das Passwort ist nicht korrekt.';
+    errorEl.hidden = false;
+    return;
+  }
+  $('admin-gate-form').hidden = true;
+  $('admin-tools').hidden = false;
+}
+
 async function showWorkspace(message) {
   $('setup-panel').hidden = true;
+  $('admin-panel').hidden = true;
+  lockAdmin();
   $('workspace').hidden = false;
   $('extra-actions').hidden = false;
   workspaceReady = true;
@@ -1008,6 +1053,9 @@ function bind() {
   $('entry-form').addEventListener('submit', addEntry);
   $('new-password-form').addEventListener('submit', onSetPassword);
   $('password-form').addEventListener('submit', onChangePassword);
+  $('btn-admin').addEventListener('click', openAdmin);
+  $('btn-admin-back').addEventListener('click', closeAdmin);
+  $('admin-gate-form').addEventListener('submit', onAdminUnlock);
   $('btn-password').addEventListener('click', openPasswordDialog);
   $('pw-cancel').addEventListener('click', closePasswordDialog);
   $('password-dialog').addEventListener('click', (event) => {
