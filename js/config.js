@@ -1,9 +1,8 @@
-// Owner und Repository stehen fest. Den Token auf jedem Gerät einmal im Formular eintragen.
-// GitHub verhindert, dass ein Token in dieser Datei veröffentlicht wird.
+// Die Seite speichert die verschlüsselte Liste im Ordner Nachsitzplan.
 window.NACHSITZ_CONFIG = {
-  owner: 'anfallen',
-  repo: 'Lernbuero_',
-  branch: 'main',
-  path: 'data/plan.json',
-  token: '',
+  baseUrl: 'https://nx29660.your-storageshare.de',
+  username: 'Testuser',
+  password: 'TestuserWSS',
+  folder: 'Nachsitzplan',
+  file: 'plan.json',
 };
