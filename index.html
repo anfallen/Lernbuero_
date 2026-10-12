@@ -35,7 +35,6 @@
           <input type="file" id="backup-file" accept="application/json,.json">
         </label>
         <button type="button" id="btn-password" class="btn">Passwort</button>
-        <button type="button" id="btn-connection" class="btn">Verbindung</button>
         <button type="button" id="btn-stats" class="btn btn-primary">Statistik</button>
       </div>
     </header>
@@ -43,29 +42,9 @@
     <p id="status" class="status" role="status"></p>
 
     <section id="setup-panel" class="card" hidden>
-      <h2 id="setup-title">Gemeinsame Speicherung</h2>
-      <div id="setup-github">
-        <p class="muted">Die veröffentlichte Seite kann Einträge nicht von selbst behalten. Einmalig wird ein GitHub-Schlüssel angelegt, der nur dieses Repository beschreiben darf. Schülernamen werden vorher verschlüsselt.</p>
-        <ol class="steps">
-          <li>Auf GitHub: Profil → <strong>Settings</strong> → <strong>Developer settings</strong> → <strong>Personal access tokens</strong> → <strong>Fine-grained tokens</strong> → <strong>Generate new token</strong>.</li>
-          <li>Nur dieses Repository auswählen. Unter <strong>Contents</strong> die Berechtigung <strong>Read and write</strong> setzen, den Token erzeugen und kopieren.</li>
-          <li>Owner, Repository und Token unten eintragen. Der Token bleibt in diesem Browser. Auf jedem weiteren Gerät dieselben drei Werte einmal eintragen.</li>
-        </ol>
-        <form id="github-form" class="entry-form">
-          <label>Owner
-            <input id="cfg-owner" required autocomplete="off" spellcheck="false" placeholder="GitHub-Name">
-          </label>
-          <label>Repository
-            <input id="cfg-repo" required autocomplete="off" spellcheck="false" placeholder="nachsitzplan">
-          </label>
-          <label class="span-2">Token
-            <input id="cfg-token" type="password" required autocomplete="off" spellcheck="false">
-          </label>
-          <button type="submit" class="btn btn-primary span-2">Verbinden</button>
-        </form>
-      </div>
-      <form id="new-password-form" class="entry-form" hidden>
-        <p class="muted span-2">Das bisherige Passwort steht in der alten Datei auf GitHub. Bitte ein neues gemeinsames Passwort festlegen und es nur an Lehrkräfte weitergeben.</p>
+      <h2 id="setup-title">Neues gemeinsames Passwort</h2>
+      <form id="new-password-form" class="entry-form">
+        <p class="muted span-2">Bitte ein neues gemeinsames Passwort festlegen und es nur an Lehrkräfte weitergeben.</p>
         <label>Neues Passwort
           <input id="new-pass" type="password" required minlength="8" autocomplete="new-password">
         </label>
@@ -135,7 +114,7 @@
     </div>
 
     <footer class="footer-note" id="sync-note">
-      Einträge werden verschlüsselt im GitHub-Repository gespeichert und sind nach der Anmeldung auf allen Geräten sichtbar.
+      Einträge werden verschlüsselt in der Nextcloud gespeichert und sind nach der Anmeldung auf allen Geräten sichtbar.
     </footer>
   </div>
 
