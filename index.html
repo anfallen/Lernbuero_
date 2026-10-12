@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Nachsitzplan</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
   <div id="login-gate" class="login-gate">
@@ -30,12 +30,8 @@
         <p class="muted">Nur für berechtigte Lehrkräfte · personenbezogene Schülerdaten</p>
       </div>
       <div class="topbar-actions" id="extra-actions" hidden>
-        <button type="button" id="btn-backup" class="btn">Sicherung</button>
-        <label class="file-btn">Sicherung laden
-          <input type="file" id="backup-file" accept="application/json,.json">
-        </label>
-        <button type="button" id="btn-password" class="btn">Passwort</button>
-        <button type="button" id="btn-stats" class="btn btn-primary">Statistik</button>
+        <button type="button" id="btn-stats" class="btn">Statistik</button>
+        <button type="button" id="btn-admin" class="btn btn-primary">Verwaltung</button>
       </div>
     </header>
 
@@ -113,6 +109,32 @@
     </section>
     </div>
 
+    <section id="admin-panel" class="card" hidden>
+      <div class="stats-head">
+        <h2>Verwaltung</h2>
+        <button type="button" id="btn-admin-back" class="btn">Zurück</button>
+      </div>
+      <form id="admin-gate-form" class="form-stack admin-gate">
+        <p class="muted">Bitte das gemeinsame Passwort erneut eingeben. Erst danach werden Sicherung, Passwort und Statistik zurücksetzen angezeigt.</p>
+        <label>Passwort
+          <input type="password" id="admin-pass" autocomplete="current-password" required>
+        </label>
+        <p id="admin-error" class="status error-text" hidden></p>
+        <button type="submit" class="btn btn-primary">Verwaltung öffnen</button>
+      </form>
+      <div id="admin-tools" class="admin-tools" hidden>
+        <p class="muted">Diese Aktionen gelten für alle Geräte.</p>
+        <div class="topbar-actions">
+          <button type="button" id="btn-backup" class="btn">Sicherung</button>
+          <label class="file-btn">Sicherung laden
+            <input type="file" id="backup-file" accept="application/json,.json">
+          </label>
+          <button type="button" id="btn-password" class="btn">Passwort</button>
+          <button type="button" id="btn-stats-reset" class="btn">Statistik zurücksetzen</button>
+        </div>
+      </div>
+    </section>
+
     <footer class="footer-note" id="sync-note">
       Einträge werden verschlüsselt in der Nextcloud gespeichert und sind nach der Anmeldung auf allen Geräten sichtbar.
     </footer>
@@ -138,9 +160,6 @@
         </table>
       </div>
       <p id="stats-empty" class="muted" hidden>Noch keine Nachsitzer.</p>
-      <div class="stats-actions">
-        <button type="button" id="btn-stats-reset" class="btn">Statistik zurücksetzen</button>
-      </div>
     </div>
   </div>
 
@@ -162,7 +181,7 @@
     </form>
   </div>
 
-  <script src="js/config.js?v=5"></script>
-  <script src="js/app.js?v=5"></script>
+  <script src="js/config.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
 </body>
 </html>
